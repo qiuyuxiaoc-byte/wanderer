@@ -1861,6 +1861,8 @@ function drawBigMap() {
 }
 
 /* ---------- 声音 ---------- */
+/* 程序化环境音（风/水/和声）开关：接入自己的背景音乐后关闭，避免底噪 */
+var ENABLE_PROC_AUDIO = false;
 var AUD = {
   ctx: null, ready: false, muted: false, paused: false,
   init: function () {
@@ -2207,8 +2209,7 @@ document.getElementById('btnStart').addEventListener('click', function () {
   this.disabled = true;
   elStart.classList.remove('show');
   elLoading.classList.add('show');
-  AUD.init();
-  AUD.setMuted(GAME.mute);
+  if (ENABLE_PROC_AUDIO) { AUD.init(); AUD.setMuted(GAME.mute); }
   if (bgm) bgm.muted = GAME.mute;
   bgmStart();
   lockOrientation();
