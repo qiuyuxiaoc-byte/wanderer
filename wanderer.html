@@ -116,6 +116,7 @@ body.norotate .portraitOnly{display:none}
 </head>
 <body>
 <canvas id="scene"></canvas>
+<audio id="bgm" src="bgm.mp3" loop preload="auto" playsinline></audio>
 <div id="vignette"></div>
 
 <div id="hud">
@@ -412,7 +413,7 @@ renderer.setSize(window.innerWidth, window.innerHeight, false);
 renderer.setClearColor(0xcfe4ee, 1);
 
 var scene = new THREE.Scene();
-var camera = new THREE.PerspectiveCamera(58, window.innerWidth / window.innerHeight, 0.25, 2600);
+var camera = new THREE.PerspectiveCamera(61, window.innerWidth / window.innerHeight, 0.25, 2600);
 scene.fog = new THREE.Fog(0xcfe4ee, 60, 520);
 
 /* ---------- 光照 ---------- */
@@ -661,7 +662,7 @@ function createChunk() {
     ['conifer', GEO.conifer, MAT_LEAF, 16],
     ['broad', GEO.broadleaf, MAT_LEAF, 16],
     ['bush', GEO.bush, MAT_LEAF, 12],
-    ['rock', GEO.rock, MAT_SOLID, 12],
+    ['rock', GEO.rock, MAT_SOLID, 20],
     ['grass', GEO.grass, MAT_LEAF2, 110],
     ['flower', GEO.flower, MAT_LEAF2, 44]
   ];
@@ -880,7 +881,7 @@ function rebuildScatter(ch, idx) {
 
   /* --- 石头 --- */
   m = sc.rock; n = 0;
-  for (i = 0; i < 24 && n < 12; i++) {
+  for (i = 0; i < 44 && n < 20; i++) {
     s = s0 + rng() * CHUNK_LEN;
     lat = 3.2 + rng() * 50; if (rng() < 0.5) lat = -lat;
     x = roadX(s) + lat; z = -s;
@@ -888,16 +889,17 @@ function rebuildScatter(ch, idx) {
     h = terrainH(x, z);
     _col.copy(pal.rock1).lerp(pal.rock2, rng()).multiplyScalar(0.9 + rng() * 0.2);
     if (pal.snowCover > 0.4) _col.lerp(pal.snow, 0.4);
-    place(ch, m, n, s, lat, rng() * 6.28, 0.45 + rng() * 1.1, _col);
+    var rsc = rng() < 0.55 ? (0.16 + rng() * 0.24) : (0.45 + rng() * 1.15);
+    place(ch, m, n, s, lat, rng() * 6.28, rsc, _col);
     n++;
   }
   m.count = n; m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true;
 
   /* --- 草 --- */
   m = sc.grass; n = 0;
-  for (i = 0; i < 210 && n < 110; i++) {
+  for (i = 0; i < 340 && n < 170; i++) {
     s = s0 + rng() * CHUNK_LEN;
-    lat = 2.3 + rng() * 22; if (rng() < 0.5) lat = -lat;
+    lat = 2.2 + rng() * 26; if (rng() < 0.5) lat = -lat;
     x = roadX(s) + lat; z = -s;
     if (waterAt(x, z, s)) continue;
     h = terrainH(x, z);
@@ -911,7 +913,7 @@ function rebuildScatter(ch, idx) {
 
   /* --- 野花 --- */
   m = sc.flower; n = 0;
-  for (i = 0; i < 90 && n < 44; i++) {
+  for (i = 0; i < 140 && n < 60; i++) {
     s = s0 + rng() * CHUNK_LEN;
     lat = 2.6 + rng() * 17; if (rng() < 0.5) lat = -lat;
     x = roadX(s) + lat; z = -s;
@@ -1341,7 +1343,7 @@ var GAME = {
 var input = { active: false, id: -1, ox: 0, oy: 0, x: 0, y: 0, mag: 0 };
 var look = { id: -1, lx: 0, ly: 0 };
 var camState = {
-  yaw: 0, pitch: 0.15, dist: 5.0,
+  yaw: 0, pitch: 0.11, dist: 4.5,
   pos: new THREE.Vector3(), tgt: new THREE.Vector3(), init: false
 };
 
@@ -1474,7 +1476,7 @@ function updatePlayer(dt) {
 
 /* ---------- 摄像机 ---------- */
 function updateCamera(dt) {
-  var tx = player.pos.x, ty = player.pos.y + 1.38, tz = player.pos.z;
+  var tx = player.pos.x, ty = player.pos.y + 1.30, tz = player.pos.z;
   var cp = Math.cos(camState.pitch), sp = Math.sin(camState.pitch);
   var dist = camState.dist;
   var dx = Math.sin(camState.yaw) * cp * dist;
@@ -1907,7 +1909,7 @@ var AUD = {
       }
       conv.buffer = ir;
 
-      var padGain = ctx.createGain(); padGain.gain.value = 0.055;
+      var padGain = ctx.createGain(); padGain.gain.value = 0.015;
       var padLP = ctx.createBiquadFilter(); padLP.type = 'lowpass'; padLP.frequency.value = 1100;
       padLP.connect(padGain);
       padGain.connect(master);
@@ -2038,6 +2040,43 @@ setInterval(function () {
   if (performance.now() - lastRaf > 250) stepFrame(performance.now());
 }, 16);
 
+/* ---------- 背景音乐（外部 mp3，无缝循环） ---------- */
+var bgm = document.getElementById('bgm');
+var bgmFadeTimer = null;
+function bgmFadeTo(to, ms) {
+  if (!bgm) return;
+  if (bgmFadeTimer) { clearInterval(bgmFadeTimer); bgmFadeTimer = null; }
+  var from = bgm.volume, t0 = performance.now();
+  bgmFadeTimer = setInterval(function () {
+    var k = Math.min(1, (performance.now() - t0) / ms);
+    bgm.volume = Math.max(0, Math.min(1, from + (to - from) * k));
+    if (k >= 1) { clearInterval(bgmFadeTimer); bgmFadeTimer = null; }
+  }, 50);
+}
+function bgmStart() {
+  if (!bgm) return;
+  bgm.volume = 0;
+  var p = bgm.play();
+  if (p && p.catch) p.catch(function () { });
+  bgmFadeTo(0.45, 3500);
+}
+function bgmPause() { if (bgm && !bgm.paused) bgm.pause(); }
+function bgmNudge() {
+  if (!bgm || GAME.state !== 'play' || !bgm.paused) return;
+  var p = bgm.play();
+  if (p && p.catch) p.catch(function () { });
+  bgmFadeTo(0.45, 2500);
+}
+window.addEventListener('pointerdown', bgmNudge, { passive: true });
+window.addEventListener('touchstart', bgmNudge, { passive: true });
+window.addEventListener('click', bgmNudge, { passive: true });
+function bgmResume() {
+  if (!bgm) return;
+  var p = bgm.play();
+  if (p && p.catch) p.catch(function () { });
+  bgmFadeTo(0.45, 1800);
+}
+
 /* ---------- 界面事件 ---------- */
 function showMap(v) {
   GAME.showMap = v;
@@ -2059,12 +2098,15 @@ document.getElementById('btnPause').addEventListener('click', function () {
     GAME.state = 'paused';
     elPause.classList.add('show');
     AUD.setPaused(true);
+    bgmPause();
   }
 });
 document.getElementById('btnResume').addEventListener('click', function () {
   elPause.classList.remove('show');
   GAME.state = 'play';
   AUD.setPaused(false);
+  lastT = 0;
+  bgmResume();
 });
 
 document.getElementById('btnSound').addEventListener('click', function () {
@@ -2072,6 +2114,7 @@ document.getElementById('btnSound').addEventListener('click', function () {
   this.classList.toggle('off', GAME.mute);
   this.textContent = GAME.mute ? '♪̸' : '♪';
   AUD.setMuted(GAME.mute);
+  if (bgm) bgm.muted = GAME.mute;
 });
 
 document.getElementById('btnStill').addEventListener('click', function () {
@@ -2082,9 +2125,11 @@ document.getElementById('btnStill').addEventListener('click', function () {
 document.addEventListener('visibilitychange', function () {
   if (document.hidden) {
     AUD.setPaused(true);
+    bgmPause();
   } else {
     AUD.setPaused(false);
     lastT = 0;
+    if (GAME.state === 'play') bgmResume();
   }
 });
 
@@ -2163,6 +2208,9 @@ document.getElementById('btnStart').addEventListener('click', function () {
   elStart.classList.remove('show');
   elLoading.classList.add('show');
   AUD.init();
+  AUD.setMuted(GAME.mute);
+  if (bgm) bgm.muted = GAME.mute;
+  bgmStart();
   lockOrientation();
   setTimeout(boot, 90);
 });
